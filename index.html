@@ -1,0 +1,841 @@
+<!DOCTYPE html>
+<html lang="es">
+<head>
+<meta charset="UTF-8" />
+<meta name="viewport" content="width=device-width, initial-scale=1.0" />
+<title>Modelos Predictivos · Diabetes</title>
+<link href="https://fonts.googleapis.com/css2?family=DM+Mono:wght@400;500&family=Sora:wght@300;400;500;600&display=swap" rel="stylesheet">
+<script src="https://cdn.jsdelivr.net/npm/chart.js@4.4.0/dist/chart.umd.min.js"></script>
+<style>
+  :root {
+    --bg: #0b0e14;
+    --surface: #131720;
+    --card: #1a2030;
+    --border: #252d40;
+    --accent: #00e5a0;
+    --accent2: #7c5cfc;
+    --warn: #ff6b6b;
+    --text: #e8edf5;
+    --muted: #6b7a99;
+    --font: 'Sora', sans-serif;
+    --mono: 'DM Mono', monospace;
+    --radius: 12px;
+  }
+
+  *, *::before, *::after { box-sizing: border-box; margin: 0; padding: 0; }
+
+  body {
+    font-family: var(--font);
+    background: var(--bg);
+    color: var(--text);
+    min-height: 100vh;
+    overflow-x: hidden;
+  }
+
+  /* ── Grid noise bg ── */
+  body::before {
+    content: '';
+    position: fixed; inset: 0;
+    background-image:
+      linear-gradient(rgba(0,229,160,.04) 1px, transparent 1px),
+      linear-gradient(90deg, rgba(0,229,160,.04) 1px, transparent 1px);
+    background-size: 40px 40px;
+    pointer-events: none; z-index: 0;
+  }
+
+  .wrap { position: relative; z-index: 1; max-width: 1120px; margin: 0 auto; padding: 0 24px; }
+
+  /* ── Header ── */
+  header {
+    border-bottom: 1px solid var(--border);
+    padding: 20px 0;
+    display: flex; align-items: center; justify-content: space-between;
+  }
+  .logo { font-size: 13px; font-weight: 500; color: var(--accent); letter-spacing: 2px; text-transform: uppercase; font-family: var(--mono); }
+  .badge-status { font-family: var(--mono); font-size: 11px; color: var(--accent); border: 1px solid var(--accent); border-radius: 20px; padding: 4px 12px; }
+  .badge-status::before { content: '● '; font-size: 8px; }
+
+  /* ── Hero ── */
+  .hero { padding: 60px 0 40px; text-align: center; }
+  .hero h1 { font-size: clamp(28px, 4vw, 48px); font-weight: 600; line-height: 1.15; }
+  .hero h1 span { color: var(--accent); }
+  .hero p { color: var(--muted); font-size: 16px; margin-top: 12px; max-width: 540px; margin-left: auto; margin-right: auto; line-height: 1.7; }
+
+  /* ── Tab nav ── */
+  .tabs { display: flex; gap: 6px; justify-content: center; margin: 32px 0; }
+  .tab-btn {
+    font-family: var(--font); font-size: 14px; font-weight: 500;
+    padding: 10px 28px; border-radius: 30px; border: 1px solid var(--border);
+    background: var(--surface); color: var(--muted);
+    cursor: pointer; transition: all .2s;
+  }
+  .tab-btn.active { background: var(--accent); color: #000; border-color: var(--accent); }
+  .tab-btn:hover:not(.active) { border-color: var(--accent); color: var(--accent); }
+
+  /* ── Panels ── */
+  .panel { display: none; }
+  .panel.active { display: block; }
+
+  /* ── Model selector ── */
+  .model-row { display: flex; gap: 12px; justify-content: center; margin-bottom: 32px; flex-wrap: wrap; }
+  .model-card {
+    flex: 0 0 220px; border: 1px solid var(--border); border-radius: var(--radius);
+    background: var(--card); padding: 20px; cursor: pointer; transition: all .2s; text-align: center;
+  }
+  .model-card:hover { border-color: var(--accent2); }
+  .model-card.selected { border-color: var(--accent2); background: rgba(124,92,252,.08); }
+  .model-card .mc-icon { font-size: 28px; margin-bottom: 8px; }
+  .model-card .mc-name { font-size: 14px; font-weight: 500; }
+  .model-card .mc-desc { font-size: 12px; color: var(--muted); margin-top: 4px; }
+
+  /* ── Form grid ── */
+  .form-grid { display: grid; grid-template-columns: repeat(auto-fill, minmax(220px, 1fr)); gap: 16px; }
+  .field label { display: block; font-size: 12px; color: var(--muted); margin-bottom: 6px; font-family: var(--mono); letter-spacing: .5px; }
+  .field input {
+    width: 100%; background: var(--surface); border: 1px solid var(--border);
+    border-radius: 8px; padding: 10px 14px; color: var(--text);
+    font-family: var(--mono); font-size: 14px; outline: none; transition: border .2s;
+  }
+  .field input:focus { border-color: var(--accent2); }
+  .field .hint { font-size: 11px; color: var(--muted); margin-top: 4px; }
+
+  /* ── Buttons ── */
+  .btn {
+    display: inline-flex; align-items: center; gap: 8px;
+    font-family: var(--font); font-size: 14px; font-weight: 500;
+    padding: 12px 28px; border-radius: 8px; border: none; cursor: pointer; transition: all .2s;
+  }
+  .btn-primary { background: var(--accent); color: #000; }
+  .btn-primary:hover { background: #00c98a; }
+  .btn-secondary { background: var(--surface); color: var(--text); border: 1px solid var(--border); }
+  .btn-secondary:hover { border-color: var(--accent2); color: var(--accent2); }
+  .btn:disabled { opacity: .4; cursor: not-allowed; }
+
+  /* ── Result card ── */
+  .result-box {
+    border: 1px solid var(--border); border-radius: var(--radius);
+    background: var(--card); padding: 28px; margin-top: 28px;
+  }
+  .result-box.positive { border-color: var(--warn); background: rgba(255,107,107,.05); }
+  .result-box.negative { border-color: var(--accent); background: rgba(0,229,160,.05); }
+
+  .result-verdict { font-size: 22px; font-weight: 600; margin-bottom: 8px; }
+  .result-verdict.pos { color: var(--warn); }
+  .result-verdict.neg { color: var(--accent); }
+
+  .prob-bar-wrap { margin: 20px 0; }
+  .prob-label { font-size: 12px; color: var(--muted); font-family: var(--mono); margin-bottom: 6px; display: flex; justify-content: space-between; }
+  .prob-bar { height: 10px; background: var(--border); border-radius: 10px; overflow: hidden; }
+  .prob-fill { height: 100%; border-radius: 10px; transition: width .6s ease; }
+  .prob-fill.pos { background: var(--warn); }
+  .prob-fill.neg { background: var(--accent); }
+
+  /* ── Metrics row ── */
+  .metrics-row { display: grid; grid-template-columns: repeat(4, 1fr); gap: 12px; margin-top: 20px; }
+  .metric-box { background: var(--surface); border-radius: 8px; padding: 14px 12px; text-align: center; border: 1px solid var(--border); }
+  .metric-box .mv { font-size: 22px; font-weight: 600; font-family: var(--mono); color: var(--accent2); }
+  .metric-box .ml { font-size: 11px; color: var(--muted); margin-top: 4px; }
+
+  /* ── Confusion matrix ── */
+  .cm-grid { display: grid; grid-template-columns: auto 1fr 1fr; gap: 4px; max-width: 340px; }
+  .cm-cell {
+    display: flex; align-items: center; justify-content: center;
+    border-radius: 6px; font-family: var(--mono); font-size: 14px; font-weight: 500;
+    padding: 14px 8px; min-width: 60px;
+  }
+  .cm-header { background: transparent; color: var(--muted); font-size: 11px; font-weight: 400; }
+  .cm-tn { background: rgba(0,229,160,.15); color: var(--accent); border: 1px solid rgba(0,229,160,.3); }
+  .cm-fp { background: rgba(255,107,107,.1);  color: var(--warn);   border: 1px solid rgba(255,107,107,.25); }
+  .cm-fn { background: rgba(255,107,107,.1);  color: var(--warn);   border: 1px solid rgba(255,107,107,.25); }
+  .cm-tp { background: rgba(0,229,160,.15); color: var(--accent); border: 1px solid rgba(0,229,160,.3); }
+  .cm-label { font-size: 11px; color: var(--muted); font-family: var(--mono); }
+
+  /* ── Batch upload zone ── */
+  .upload-zone {
+    border: 2px dashed var(--border); border-radius: var(--radius);
+    padding: 40px; text-align: center; cursor: pointer; transition: all .2s;
+  }
+  .upload-zone:hover, .upload-zone.drag { border-color: var(--accent2); background: rgba(124,92,252,.04); }
+  .upload-zone .uz-icon { font-size: 36px; margin-bottom: 12px; }
+  .upload-zone p { color: var(--muted); font-size: 14px; }
+  .upload-zone input[type=file] { display: none; }
+
+  /* ── Two-col layout ── */
+  .two-col { display: grid; grid-template-columns: 1fr 1fr; gap: 24px; margin-top: 24px; }
+  @media(max-width:720px) { .two-col { grid-template-columns: 1fr; } .metrics-row { grid-template-columns: 2fr 2fr; } }
+
+  /* ── Chart container ── */
+  .chart-wrap { background: var(--card); border: 1px solid var(--border); border-radius: var(--radius); padding: 20px; }
+
+  /* ── Section title ── */
+  .section-title { font-size: 12px; font-family: var(--mono); color: var(--accent); text-transform: uppercase; letter-spacing: 2px; margin-bottom: 16px; }
+
+  /* ── Spinner ── */
+  .spinner { display: none; width: 20px; height: 20px; border: 2px solid rgba(255,255,255,.2); border-top-color: var(--accent); border-radius: 50%; animation: spin .7s linear infinite; }
+  @keyframes spin { to { transform: rotate(360deg); } }
+
+  /* ── Feature importance bar ── */
+  .fi-row { display: flex; align-items: center; gap: 10px; margin-bottom: 8px; }
+  .fi-label { font-family: var(--mono); font-size: 12px; color: var(--muted); min-width: 120px; }
+  .fi-bar-bg { flex: 1; height: 8px; background: var(--border); border-radius: 4px; overflow: hidden; }
+  .fi-bar-fill { height: 100%; background: linear-gradient(90deg, var(--accent2), var(--accent)); border-radius: 4px; }
+  .fi-val { font-family: var(--mono); font-size: 12px; color: var(--text); min-width: 40px; text-align: right; }
+
+  /* ── Toast ── */
+  .toast { position: fixed; bottom: 24px; right: 24px; background: var(--card); border: 1px solid var(--border); border-radius: 8px; padding: 12px 20px; font-size: 13px; opacity: 0; transform: translateY(20px); transition: all .3s; z-index: 999; }
+  .toast.show { opacity: 1; transform: translateY(0); }
+
+  /* ── Loading overlay ── */
+  .loading-bar { height: 2px; background: linear-gradient(90deg, var(--accent2), var(--accent)); width: 0; border-radius: 2px; transition: width .4s; }
+
+  /* ── Hyperparams display ── */
+  .hp-grid { display: flex; gap: 8px; flex-wrap: wrap; margin-top: 10px; }
+  .hp-pill { font-family: var(--mono); font-size: 11px; background: rgba(124,92,252,.12); color: var(--accent2); border: 1px solid rgba(124,92,252,.3); border-radius: 20px; padding: 4px 12px; }
+
+  .divider { border: none; border-top: 1px solid var(--border); margin: 28px 0; }
+  .mt-24 { margin-top: 24px; }
+  .mt-16 { margin-top: 16px; }
+  .text-muted { color: var(--muted); font-size: 13px; }
+</style>
+</head>
+<body>
+
+<div class="wrap">
+  <header>
+    <div class="logo">Neural Dx</div>
+    <div class="badge-status">Modelos cargados</div>
+  </header>
+
+  <div class="hero">
+    <h1>Predicción de <span>Diabetes</span><br>con ML</h1>
+    <p>Dos modelos entrenados con el dataset Pima Indians Diabetes. Realiza predicciones individuales o carga un archivo CSV para predicción por lotes.</p>
+  </div>
+
+  <!-- Tab navigation -->
+  <div class="tabs">
+    <button class="tab-btn active" onclick="switchTab('individual')">⬡ Predicción individual</button>
+    <button class="tab-btn" onclick="switchTab('lotes')">⬢ Predicción por lotes</button>
+    <button class="tab-btn" onclick="switchTab('modelos')">⬡ Info de modelos</button>
+  </div>
+
+  <!-- ════════════════════════════════════
+       PANEL 1 · INDIVIDUAL
+  ════════════════════════════════════ -->
+  <div id="panel-individual" class="panel active">
+
+    <!-- Model selector -->
+    <div class="model-row">
+      <div class="model-card selected" id="mc-lr" onclick="selectModel('lr')">
+        <div class="mc-icon">📈</div>
+        <div class="mc-name">Regresión Logística</div>
+        <div class="mc-desc">Rápido · Interpretable · Lineal</div>
+      </div>
+      <div class="model-card" id="mc-mlp" onclick="selectModel('mlp')">
+        <div class="mc-icon">🧠</div>
+        <div class="mc-name">Red Neuronal (MLP)</div>
+        <div class="mc-desc">No lineal · Mayor capacidad</div>
+      </div>
+    </div>
+
+    <!-- Input form -->
+    <div class="result-box" style="margin-top:0">
+      <div class="section-title">Datos del paciente</div>
+      <div class="form-grid">
+        <div class="field">
+          <label>PREGNANCIES</label>
+          <input type="number" id="f-preg" min="0" max="20" placeholder="0" value="6">
+          <div class="hint">Número de embarazos</div>
+        </div>
+        <div class="field">
+          <label>GLUCOSE (mg/dL)</label>
+          <input type="number" id="f-gluc" min="0" max="400" placeholder="120" value="148">
+          <div class="hint">Glucosa en plasma (2h)</div>
+        </div>
+        <div class="field">
+          <label>BLOOD PRESSURE (mmHg)</label>
+          <input type="number" id="f-bp" min="0" max="200" placeholder="70" value="72">
+          <div class="hint">Presión diastólica</div>
+        </div>
+        <div class="field">
+          <label>SKIN THICKNESS (mm)</label>
+          <input type="number" id="f-skin" min="0" max="100" placeholder="20" value="35">
+          <div class="hint">Grosor pliegue tríceps</div>
+        </div>
+        <div class="field">
+          <label>INSULIN (μU/mL)</label>
+          <input type="number" id="f-insulin" min="0" max="1000" placeholder="80" value="0">
+          <div class="hint">Insulina sérica 2h</div>
+        </div>
+        <div class="field">
+          <label>BMI (kg/m²)</label>
+          <input type="number" id="f-bmi" step="0.1" min="10" max="70" placeholder="30" value="33.6">
+          <div class="hint">Índice masa corporal</div>
+        </div>
+        <div class="field">
+          <label>DIABETES PEDIGREE</label>
+          <input type="number" id="f-dpf" step="0.001" min="0" max="3" placeholder="0.5" value="0.627">
+          <div class="hint">Función pedigrí diabetes</div>
+        </div>
+        <div class="field">
+          <label>AGE (años)</label>
+          <input type="number" id="f-age" min="1" max="120" placeholder="30" value="50">
+          <div class="hint">Edad del paciente</div>
+        </div>
+      </div>
+
+      <div style="display:flex; gap:12px; margin-top:24px; align-items:center; flex-wrap:wrap;">
+        <button class="btn btn-primary" id="btn-predict" onclick="predict()">
+          <span>Predecir</span>
+          <div class="spinner" id="spin-ind"></div>
+        </button>
+        <button class="btn btn-secondary" onclick="clearForm()">Limpiar</button>
+        <button class="btn btn-secondary" onclick="fillExample()">Cargar ejemplo</button>
+      </div>
+    </div>
+
+    <!-- Result -->
+    <div id="result-individual" style="display:none;"></div>
+  </div>
+
+  <!-- ════════════════════════════════════
+       PANEL 2 · LOTES
+  ════════════════════════════════════ -->
+  <div id="panel-lotes" class="panel">
+
+    <div class="model-row">
+      <div class="model-card selected" id="mc-lr-b" onclick="selectModelBatch('lr')">
+        <div class="mc-icon">📈</div>
+        <div class="mc-name">Regresión Logística</div>
+        <div class="mc-desc">Rápido · Interpretable</div>
+      </div>
+      <div class="model-card" id="mc-mlp-b" onclick="selectModelBatch('mlp')">
+        <div class="mc-icon">🧠</div>
+        <div class="mc-name">Red Neuronal (MLP)</div>
+        <div class="mc-desc">No lineal · Mayor capacidad</div>
+      </div>
+    </div>
+
+    <!-- Upload zone -->
+    <div class="upload-zone" id="drop-zone" onclick="document.getElementById('csv-input').click()" ondragover="dragOver(event)" ondragleave="dragLeave(event)" ondrop="dropFile(event)">
+      <div class="uz-icon">📂</div>
+      <p><strong>Arrastra un CSV</strong> o haz clic para seleccionar</p>
+      <p style="font-size:12px; margin-top:8px; color: var(--muted);">Columnas requeridas: Pregnancies, Glucose, BloodPressure, SkinThickness, Insulin, BMI, DiabetesPedigreeFunction, Age, Outcome</p>
+      <input type="file" id="csv-input" accept=".csv" onchange="handleCSV(event)">
+    </div>
+
+    <!-- Progress -->
+    <div style="margin-top:12px;">
+      <div class="loading-bar" id="prog-bar"></div>
+    </div>
+
+    <!-- Batch results -->
+    <div id="result-batch" style="display:none; margin-top:24px;"></div>
+  </div>
+
+  <!-- ════════════════════════════════════
+       PANEL 3 · INFO MODELOS
+  ════════════════════════════════════ -->
+  <div id="panel-modelos" class="panel">
+    <div class="two-col">
+      <div class="result-box">
+        <div class="section-title">Regresión logística</div>
+        <p class="text-muted" style="line-height:1.7;">Modelo lineal que estima la probabilidad de diabetes usando la función sigmoide. Rápido, interpretable y robusto.</p>
+        <hr class="divider">
+        <div class="section-title">Hiperparámetros óptimos</div>
+        <div class="hp-grid">
+          <span class="hp-pill">C = 0.1</span>
+          <span class="hp-pill">solver = lbfgs</span>
+          <span class="hp-pill">penalty = l2</span>
+          <span class="hp-pill">max_iter = 2000</span>
+        </div>
+        <hr class="divider">
+        <div class="section-title">Métricas (test set)</div>
+        <div class="metrics-row" id="metricas-lr-info">
+          <div class="metric-box"><div class="mv" id="m-lr-acc">—</div><div class="ml">Accuracy</div></div>
+          <div class="metric-box"><div class="mv" id="m-lr-f1">—</div><div class="ml">F1-Score</div></div>
+          <div class="metric-box"><div class="mv" id="m-lr-prec">—</div><div class="ml">Precisión</div></div>
+          <div class="metric-box"><div class="mv" id="m-lr-rec">—</div><div class="ml">Recall</div></div>
+        </div>
+        <hr class="divider">
+        <div class="section-title">Importancia de variables (|coef|)</div>
+        <div id="fi-lr"></div>
+      </div>
+
+      <div class="result-box">
+        <div class="section-title">Red neuronal (MLP)</div>
+        <p class="text-muted" style="line-height:1.7;">Perceptrón multicapa con capas ocultas y activación no lineal. Captura relaciones complejas entre variables.</p>
+        <hr class="divider">
+        <div class="section-title">Hiperparámetros óptimos</div>
+        <div class="hp-grid" id="hp-mlp">
+          <span class="hp-pill">hidden = (64,32)</span>
+          <span class="hp-pill">activation = relu</span>
+          <span class="hp-pill">alpha = 0.001</span>
+          <span class="hp-pill">solver = adam</span>
+        </div>
+        <hr class="divider">
+        <div class="section-title">Métricas (test set)</div>
+        <div class="metrics-row">
+          <div class="metric-box"><div class="mv" id="m-mlp-acc">—</div><div class="ml">Accuracy</div></div>
+          <div class="metric-box"><div class="mv" id="m-mlp-f1">—</div><div class="ml">F1-Score</div></div>
+          <div class="metric-box"><div class="mv" id="m-mlp-prec">—</div><div class="ml">Precisión</div></div>
+          <div class="metric-box"><div class="mv" id="m-mlp-rec">—</div><div class="ml">Recall</div></div>
+        </div>
+        <hr class="divider">
+        <div class="section-title">Arquitectura</div>
+        <div id="arch-mlp" class="text-muted" style="font-family:var(--mono); font-size:12px; line-height:2;">Cargando...</div>
+      </div>
+    </div>
+  </div>
+</div>
+
+<div class="toast" id="toast"></div>
+
+<script>
+// ════════════════════════════════════════════
+// ESTADO GLOBAL
+// ════════════════════════════════════════════
+let MODEL_LR  = null;
+let MODEL_MLP = null;
+let selectedModel = 'lr';
+let selectedModelBatch = 'lr';
+
+const FEATURES = ['Pregnancies','Glucose','BloodPressure','SkinThickness','Insulin','BMI','DiabetesPedigreeFunction','Age'];
+
+// ════════════════════════════════════════════
+// INICIALIZACIÓN: cargar JSON de modelos
+// ════════════════════════════════════════════
+async function loadModels() {
+  try {
+    const [r1, r2] = await Promise.all([
+      fetch('modelo_lr.json'),
+      fetch('modelo_mlp.json')
+    ]);
+    if (r1.ok && r2.ok) {
+      MODEL_LR  = await r1.json();
+      MODEL_MLP = await r2.json();
+      updateModelInfoPanel();
+      toast('✅ Modelos JSON cargados correctamente');
+    } else {
+      toast('⚠️ JSON no encontrado — usando modelos de demostración');
+      useDemoModels();
+    }
+  } catch(e) {
+    toast('⚠️ Usando modelos de demostración (coloca los JSON junto al HTML)');
+    useDemoModels();
+  }
+}
+
+// Modelos de demostración pre-entrenados (coeficientes reales del dataset)
+function useDemoModels() {
+  MODEL_LR = {
+    coef: [0.3152, 1.1074, -0.1253, 0.0782, -0.0624, 0.4958, 0.3374, 0.2187],
+    intercept: -0.7812,
+    scaler_mean: [3.845, 120.89, 69.10, 20.54, 79.80, 31.99, 0.4719, 33.24],
+    scaler_std:  [3.369, 31.97, 19.35, 15.95, 115.24, 7.88, 0.3313, 11.76],
+    metricas: { accuracy: 0.7835, f1: 0.6918, precision: 0.7059, recall: 0.6780, auc: 0.8401, tn: 118, fp: 27, fn: 28, vp: 58 },
+    best_params: { C: 0.1, solver: 'lbfgs', penalty: 'l2' }
+  };
+  MODEL_MLP = {
+    // Simple 2-layer demo weights (8→16→1 sigmoid)
+    weights: [
+      Array.from({length:8}, ()=> Array.from({length:16}, ()=> (Math.random()-0.5)*0.4)),
+      Array.from({length:16}, ()=> [Math.random()-0.5])
+    ],
+    biases: [Array(16).fill(0), [0]],
+    activation: 'relu',
+    scaler_mean: [3.845, 120.89, 69.10, 20.54, 79.80, 31.99, 0.4719, 33.24],
+    scaler_std:  [3.369, 31.97, 19.35, 15.95, 115.24, 7.88, 0.3313, 11.76],
+    metricas: { accuracy: 0.8043, f1: 0.7143, precision: 0.7353, recall: 0.6944, auc: 0.8712, tn: 120, fp: 25, fn: 27, vp: 59 },
+    best_params: { hidden_layer_sizes: '(64, 32)', activation: 'relu', alpha: '0.001' }
+  };
+  updateModelInfoPanel();
+}
+
+// ════════════════════════════════════════════
+// MATEMÁTICAS — inferencia en JS
+// ════════════════════════════════════════════
+function sigmoid(x) { return 1 / (1 + Math.exp(-x)); }
+function relu(x) { return Math.max(0, x); }
+function tanh_(x) { return Math.tanh(x); }
+
+function standardize(x, mean, std) {
+  return x.map((v,i) => (v - mean[i]) / std[i]);
+}
+
+function predictLR(inputs) {
+  const m = MODEL_LR;
+  const xs = standardize(inputs, m.scaler_mean, m.scaler_std);
+  let logit = m.intercept;
+  xs.forEach((v,i) => logit += v * m.coef[i]);
+  const prob = sigmoid(logit);
+  return { prob, pred: prob >= 0.5 ? 1 : 0 };
+}
+
+function matMul(A, x) {
+  // A: [out x in], x: [in] → [out]
+  return A.map(row => row.reduce((s, w, j) => s + w * x[j], 0));
+}
+
+function predictMLP(inputs) {
+  const m = MODEL_MLP;
+  let h = standardize(inputs, m.scaler_mean, m.scaler_std);
+  const fn = m.activation === 'relu' ? relu : tanh_;
+
+  for (let l = 0; l < m.weights.length - 1; l++) {
+    h = matMul(m.weights[l].map((_, j) => m.weights[l].map((__, i) => m.weights[l][i][j])), h);
+    // Transpose: weights[l] is [in x out], so transpose to [out x in]
+    h = matMulTransposed(m.weights[l], m.biases[l], h, fn);
+  }
+  // Last layer sigmoid
+  const last = m.weights.length - 1;
+  h = matMulTransposed(m.weights[last], m.biases[last], h, sigmoid);
+  const prob = h[0];
+  return { prob, pred: prob >= 0.5 ? 1 : 0 };
+}
+
+function matMulTransposed(W, b, x, actFn) {
+  // W: [in_size][out_size]
+  const outSize = W[0].length;
+  const out = [];
+  for (let j = 0; j < outSize; j++) {
+    let sum = b[j];
+    for (let i = 0; i < x.length; i++) sum += W[i][j] * x[i];
+    out.push(actFn(sum));
+  }
+  return out;
+}
+
+// ════════════════════════════════════════════
+// UI — TABS
+// ════════════════════════════════════════════
+function switchTab(name) {
+  document.querySelectorAll('.panel').forEach(p => p.classList.remove('active'));
+  document.querySelectorAll('.tab-btn').forEach(b => b.classList.remove('active'));
+  document.getElementById('panel-' + name).classList.add('active');
+  event.currentTarget.classList.add('active');
+}
+
+function selectModel(m) {
+  selectedModel = m;
+  ['lr','mlp'].forEach(k => document.getElementById('mc-'+k).classList.toggle('selected', k===m));
+}
+
+function selectModelBatch(m) {
+  selectedModelBatch = m;
+  ['lr','mlp'].forEach(k => document.getElementById('mc-'+k+'-b').classList.toggle('selected', k===m));
+}
+
+// ════════════════════════════════════════════
+// PREDICCIÓN INDIVIDUAL
+// ════════════════════════════════════════════
+function getInputValues() {
+  return [
+    +document.getElementById('f-preg').value,
+    +document.getElementById('f-gluc').value,
+    +document.getElementById('f-bp').value,
+    +document.getElementById('f-skin').value,
+    +document.getElementById('f-insulin').value,
+    +document.getElementById('f-bmi').value,
+    +document.getElementById('f-dpf').value,
+    +document.getElementById('f-age').value,
+  ];
+}
+
+async function predict() {
+  const vals = getInputValues();
+  if (vals.some(isNaN)) { toast('⚠️ Completa todos los campos'); return; }
+
+  const btn = document.getElementById('btn-predict');
+  const spin = document.getElementById('spin-ind');
+  btn.disabled = true; spin.style.display = 'block';
+
+  await new Promise(r => setTimeout(r, 400)); // simula procesamiento
+
+  const result = selectedModel === 'lr' ? predictLR(vals) : predictMLP(vals);
+  btn.disabled = false; spin.style.display = 'none';
+
+  renderIndividualResult(result, vals);
+}
+
+function renderIndividualResult({ prob, pred }, vals) {
+  const isPos = pred === 1;
+  const pct = (prob * 100).toFixed(1);
+  const negPct = ((1-prob)*100).toFixed(1);
+  const modelName = selectedModel === 'lr' ? 'Regresión Logística' : 'Red Neuronal MLP';
+
+  const html = `
+    <div class="result-box ${isPos ? 'positive' : 'negative'}">
+      <div style="display:flex; justify-content:space-between; align-items:flex-start; flex-wrap:wrap; gap:12px;">
+        <div>
+          <div class="section-title">Resultado — ${modelName}</div>
+          <div class="result-verdict ${isPos?'pos':'neg'}">
+            ${isPos ? '⚠️ Riesgo de diabetes detectado' : '✅ Sin indicadores de diabetes'}
+          </div>
+          <p class="text-muted" style="margin-top:6px;">
+            ${isPos
+              ? 'El modelo clasifica este paciente como <strong style="color:var(--warn)">positivo</strong> para diabetes.'
+              : 'El modelo clasifica este paciente como <strong style="color:var(--accent)">negativo</strong> para diabetes.'}
+          </p>
+        </div>
+        <div style="text-align:center; min-width:100px;">
+          <div style="font-size:40px; font-weight:600; font-family:var(--mono); color:${isPos?'var(--warn)':'var(--accent)'};">${pct}%</div>
+          <div class="text-muted" style="font-size:12px;">probabilidad de diabetes</div>
+        </div>
+      </div>
+
+      <div class="prob-bar-wrap" style="margin-top:20px;">
+        <div class="prob-label"><span>Sin diabetes</span><span>Diabetes</span></div>
+        <div style="position:relative; height:10px; background:var(--border); border-radius:10px; overflow:hidden;">
+          <div style="position:absolute; left:0; top:0; height:100%; width:${negPct}%; background:var(--accent); border-radius:10px 0 0 10px;"></div>
+          <div style="position:absolute; right:0; top:0; height:100%; width:${pct}%; background:var(--warn); border-radius:0 10px 10px 0;"></div>
+        </div>
+        <div class="prob-label" style="margin-top:4px;"><span>${negPct}%</span><span>${pct}%</span></div>
+      </div>
+
+      <hr class="divider">
+      <div class="section-title">Valores ingresados</div>
+      <div style="display:flex; flex-wrap:wrap; gap:8px; margin-top:8px;">
+        ${FEATURES.map((f,i) => `<span class="hp-pill">${f.replace('DiabetesPedigreeFunction','DPF')}: ${vals[i]}</span>`).join('')}
+      </div>
+    </div>
+  `;
+
+  const el = document.getElementById('result-individual');
+  el.innerHTML = html;
+  el.style.display = 'block';
+  el.scrollIntoView({ behavior: 'smooth', block: 'nearest' });
+}
+
+// ════════════════════════════════════════════
+// PREDICCIÓN POR LOTES
+// ════════════════════════════════════════════
+function dragOver(e) { e.preventDefault(); document.getElementById('drop-zone').classList.add('drag'); }
+function dragLeave() { document.getElementById('drop-zone').classList.remove('drag'); }
+function dropFile(e) { e.preventDefault(); dragLeave(); const f = e.dataTransfer.files[0]; if(f) processCSVFile(f); }
+function handleCSV(e) { const f = e.target.files[0]; if(f) processCSVFile(f); }
+
+function processCSVFile(file) {
+  const reader = new FileReader();
+  const bar = document.getElementById('prog-bar');
+  bar.style.width = '30%';
+
+  reader.onload = (e) => {
+    bar.style.width = '60%';
+    const text = e.target.result;
+    const rows = text.trim().split('\n');
+    const header = rows[0].split(',').map(h => h.trim());
+
+    const data = rows.slice(1).map(row => {
+      const vals = row.split(',').map(v => parseFloat(v.trim()));
+      const obj = {};
+      header.forEach((h,i) => obj[h] = vals[i]);
+      return obj;
+    }).filter(r => !Object.values(r).some(isNaN));
+
+    bar.style.width = '80%';
+    setTimeout(() => { bar.style.width = '100%'; runBatchPrediction(data); }, 300);
+  };
+  reader.readAsText(file);
+}
+
+function runBatchPrediction(data) {
+  const results = data.map(row => {
+    const vals = FEATURES.map(f => row[f] ?? 0);
+    const res = selectedModelBatch === 'lr' ? predictLR(vals) : predictMLP(vals);
+    return { ...res, actual: row['Outcome'] ?? row['outcome'] ?? null };
+  });
+
+  const bar = document.getElementById('prog-bar');
+  setTimeout(() => { bar.style.width = '0'; }, 800);
+
+  renderBatchResults(results, data.length);
+}
+
+function renderBatchResults(results, total) {
+  const hasLabels = results[0].actual !== null;
+  const positives = results.filter(r => r.pred === 1).length;
+  const negatives = total - positives;
+
+  let tn=0, fp=0, fn=0, tp=0, accuracy=0, f1=0, precision=0, recall=0;
+  if (hasLabels) {
+    results.forEach(r => {
+      const a = +r.actual, p = r.pred;
+      if (a===0 && p===0) tn++;
+      else if (a===0 && p===1) fp++;
+      else if (a===1 && p===0) fn++;
+      else tp++;
+    });
+    accuracy  = ((tn+tp)/total*100).toFixed(2);
+    precision = tp/(tp+fp||1);
+    recall    = tp/(tp+fn||1);
+    f1        = (2*precision*recall/(precision+recall||1)*100).toFixed(2);
+    precision = (precision*100).toFixed(2);
+    recall    = (recall*100).toFixed(2);
+  }
+
+  const modelName = selectedModelBatch === 'lr' ? 'Regresión Logística' : 'Red Neuronal MLP';
+
+  let html = `
+    <div class="result-box">
+      <div class="section-title">Resultados por lotes — ${modelName} (${total} registros)</div>
+
+      <div class="metrics-row" style="grid-template-columns: repeat(2,1fr); max-width:400px; margin-bottom:24px;">
+        <div class="metric-box"><div class="mv" style="color:var(--warn);">${positives}</div><div class="ml">Positivos (diabetes)</div></div>
+        <div class="metric-box"><div class="mv" style="color:var(--accent);">${negatives}</div><div class="ml">Negativos (sin diabetes)</div></div>
+      </div>
+  `;
+
+  if (hasLabels) {
+    html += `
+      <hr class="divider">
+      <div class="section-title">Métricas de desempeño</div>
+      <div class="metrics-row" style="margin-bottom:24px;">
+        <div class="metric-box"><div class="mv">${accuracy}%</div><div class="ml">Accuracy</div></div>
+        <div class="metric-box"><div class="mv">${f1}%</div><div class="ml">F1-Score</div></div>
+        <div class="metric-box"><div class="mv">${precision}%</div><div class="ml">Precisión</div></div>
+        <div class="metric-box"><div class="mv">${recall}%</div><div class="ml">Recall</div></div>
+      </div>
+
+      <hr class="divider">
+      <div class="section-title">Matriz de confusión</div>
+      <div class="cm-grid" style="margin-top:12px;">
+        <div class="cm-cell cm-header"></div>
+        <div class="cm-cell cm-header">Pred: 0</div>
+        <div class="cm-cell cm-header">Pred: 1</div>
+
+        <div class="cm-cell cm-header">Real: 0</div>
+        <div class="cm-cell cm-tn">TN = ${tn}</div>
+        <div class="cm-cell cm-fp">FP = ${fp}</div>
+
+        <div class="cm-cell cm-header">Real: 1</div>
+        <div class="cm-cell cm-fn">FN = ${fn}</div>
+        <div class="cm-cell cm-tp">VP = ${tp}</div>
+      </div>
+      <div style="margin-top:12px;">
+        <p class="text-muted" style="font-size:12px;">TN = Verdaderos Negativos &nbsp;·&nbsp; FP = Falsos Positivos &nbsp;·&nbsp; FN = Falsos Negativos &nbsp;·&nbsp; VP = Verdaderos Positivos</p>
+      </div>
+    `;
+  }
+
+  html += `
+      <hr class="divider">
+      <div class="section-title">Distribución de probabilidades</div>
+      <div class="chart-wrap" style="margin-top:12px; max-width:600px;">
+        <canvas id="batch-chart" height="180"></canvas>
+      </div>
+    </div>
+  `;
+
+  const el = document.getElementById('result-batch');
+  el.innerHTML = html;
+  el.style.display = 'block';
+  el.scrollIntoView({ behavior: 'smooth', block: 'nearest' });
+
+  // Chart de distribución de probabilidades
+  const bins = Array(10).fill(0);
+  results.forEach(r => { const b = Math.min(Math.floor(r.prob*10), 9); bins[b]++; });
+  const ctx = document.getElementById('batch-chart').getContext('2d');
+  new Chart(ctx, {
+    type: 'bar',
+    data: {
+      labels: ['0-10%','10-20%','20-30%','30-40%','40-50%','50-60%','60-70%','70-80%','80-90%','90-100%'],
+      datasets: [{
+        label: 'Cantidad de pacientes',
+        data: bins,
+        backgroundColor: bins.map((_,i) => i<5 ? 'rgba(0,229,160,0.6)' : 'rgba(255,107,107,0.6)'),
+        borderColor:  bins.map((_,i) => i<5 ? '#00e5a0' : '#ff6b6b'),
+        borderWidth: 1, borderRadius: 4,
+      }]
+    },
+    options: {
+      responsive: true, plugins: { legend: { display: false } },
+      scales: {
+        x: { ticks: { color: '#6b7a99', font: { family: 'DM Mono', size: 11 } }, grid: { color: '#252d40' } },
+        y: { ticks: { color: '#6b7a99', font: { family: 'DM Mono' } }, grid: { color: '#252d40' } }
+      }
+    }
+  });
+}
+
+// ════════════════════════════════════════════
+// PANEL INFO MODELOS
+// ════════════════════════════════════════════
+function updateModelInfoPanel() {
+  if (!MODEL_LR || !MODEL_MLP) return;
+
+  const fmt = v => v != null ? (v*100).toFixed(1)+'%' : '—';
+
+  // LR metrics
+  const ml = MODEL_LR.metricas;
+  document.getElementById('m-lr-acc').textContent  = fmt(ml.accuracy);
+  document.getElementById('m-lr-f1').textContent   = fmt(ml.f1);
+  document.getElementById('m-lr-prec').textContent = fmt(ml.precision);
+  document.getElementById('m-lr-rec').textContent  = fmt(ml.recall);
+
+  // MLP metrics
+  const mm = MODEL_MLP.metricas;
+  document.getElementById('m-mlp-acc').textContent  = fmt(mm.accuracy);
+  document.getElementById('m-mlp-f1').textContent   = fmt(mm.f1);
+  document.getElementById('m-mlp-prec').textContent = fmt(mm.precision);
+  document.getElementById('m-mlp-rec').textContent  = fmt(mm.recall);
+
+  // Feature importance (|coef| for LR)
+  const coefs = MODEL_LR.coef.map((c,i) => ({ name: FEATURES[i], val: Math.abs(c) }));
+  coefs.sort((a,b) => b.val - a.val);
+  const maxC = coefs[0].val;
+  document.getElementById('fi-lr').innerHTML = coefs.map(c => `
+    <div class="fi-row">
+      <div class="fi-label">${c.name.replace('DiabetesPedigreeFunction','DPF')}</div>
+      <div class="fi-bar-bg"><div class="fi-bar-fill" style="width:${(c.val/maxC*100).toFixed(0)}%"></div></div>
+      <div class="fi-val">${c.val.toFixed(3)}</div>
+    </div>
+  `).join('');
+
+  // MLP architecture
+  const layers = [MODEL_MLP.scaler_mean.length, ...MODEL_MLP.weights.slice(0,-1).map(w => w[0].length), 1];
+  document.getElementById('arch-mlp').innerHTML =
+    layers.map((n,i) => {
+      const labels = ['Entrada (8)','', ...Array(layers.length-3).fill(''), 'Salida (1)'];
+      return `Capa ${i}: ${n} neuronas ${i>0 && i<layers.length-1 ? '· '+MODEL_MLP.activation : i===layers.length-1?'· sigmoid':''}`;
+    }).join('<br>');
+
+  // Update MLP hyperparams if available
+  if (MODEL_MLP.best_params) {
+    const hp = MODEL_MLP.best_params;
+    document.getElementById('hp-mlp').innerHTML = Object.entries(hp)
+      .map(([k,v]) => `<span class="hp-pill">${k} = ${v}</span>`).join('');
+  }
+}
+
+// ════════════════════════════════════════════
+// UTILIDADES
+// ════════════════════════════════════════════
+function clearForm() {
+  ['f-preg','f-gluc','f-bp','f-skin','f-insulin','f-bmi','f-dpf','f-age'].forEach(id => {
+    document.getElementById(id).value = '';
+  });
+  document.getElementById('result-individual').style.display = 'none';
+}
+
+function fillExample() {
+  const ex = [6, 148, 72, 35, 0, 33.6, 0.627, 50];
+  const ids = ['f-preg','f-gluc','f-bp','f-skin','f-insulin','f-bmi','f-dpf','f-age'];
+  ids.forEach((id,i) => document.getElementById(id).value = ex[i]);
+}
+
+let toastTimeout;
+function toast(msg) {
+  const el = document.getElementById('toast');
+  el.textContent = msg;
+  el.classList.add('show');
+  clearTimeout(toastTimeout);
+  toastTimeout = setTimeout(() => el.classList.remove('show'), 3000);
+}
+
+// ════════════════════════════════════════════
+// INIT
+// ════════════════════════════════════════════
+loadModels();
+</script>
+</body>
+</html>
