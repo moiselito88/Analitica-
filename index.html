@@ -1,0 +1,777 @@
+<!DOCTYPE html>
+<html lang="es">
+<head>
+<meta charset="UTF-8" />
+<meta name="viewport" content="width=device-width, initial-scale=1.0" />
+<title>Predictor de Peso - Machine Learning</title>
+<link href="https://fonts.googleapis.com/css2?family=DM+Mono:wght@400;500&family=Sora:wght@300;400;500;600&display=swap" rel="stylesheet">
+<style>
+  :root {
+    --bg: #0b0e14;
+    --surface: #131720;
+    --card: #1a2030;
+    --border: #252d40;
+    --accent: #00e5a0;
+    --accent2: #7c5cfc;
+    --warn: #ff6b6b;
+    --text: #e8edf5;
+    --muted: #6b7a99;
+    --font: 'Sora', sans-serif;
+    --mono: 'DM Mono', monospace;
+  }
+
+  *, *::before, *::after { box-sizing: border-box; margin: 0; padding: 0; }
+
+  body {
+    font-family: var(--font);
+    background: var(--bg);
+    color: var(--text);
+    min-height: 100vh;
+  }
+
+  .wrap { max-width: 1200px; margin: 0 auto; padding: 0 24px; }
+
+  header {
+    border-bottom: 1px solid var(--border);
+    padding: 20px 0;
+    display: flex; align-items: center; justify-content: space-between;
+  }
+  .logo { font-size: 13px; font-weight: 600; color: var(--accent); letter-spacing: 2px; }
+  .status { font-size: 11px; color: var(--accent); border: 1px solid var(--accent); border-radius: 20px; padding: 4px 12px; }
+
+  .hero { padding: 40px 0 30px; text-align: center; }
+  .hero h1 { font-size: 42px; font-weight: 600; }
+  .hero h1 span { color: var(--accent); }
+  .hero p { color: var(--muted); font-size: 16px; margin-top: 12px; }
+
+  .tabs { display: flex; gap: 6px; justify-content: center; margin: 32px 0; flex-wrap: wrap; }
+  .tab-btn {
+    font-family: var(--font); font-size: 14px; font-weight: 500;
+    padding: 10px 28px; border-radius: 30px; border: 1px solid var(--border);
+    background: var(--surface); color: var(--muted);
+    cursor: pointer; transition: all .2s;
+  }
+  .tab-btn.active { background: var(--accent); color: #000; }
+
+  .panel { display: none; }
+  .panel.active { display: block; }
+
+  .model-selector { 
+    display: flex; gap: 12px; justify-content: center; margin: 20px 0; 
+    flex-wrap: wrap; padding: 20px; background: var(--card); border: 1px solid var(--border); border-radius: 8px;
+  }
+  .model-btn {
+    padding: 10px 20px; border: 2px solid var(--border); border-radius: 6px;
+    background: var(--surface); color: var(--text); cursor: pointer; font-weight: 500; transition: all .3s;
+  }
+  .model-btn.active { border-color: var(--accent); background: rgba(0, 229, 160, 0.1); color: var(--accent); }
+
+  .form-grid { display: grid; grid-template-columns: repeat(auto-fill, minmax(180px, 1fr)); gap: 16px; margin: 20px 0; }
+  .field label { display: block; font-size: 12px; color: var(--muted); margin-bottom: 6px; }
+  .field input, .field select {
+    width: 100%; background: var(--surface); border: 1px solid var(--border);
+    border-radius: 6px; padding: 10px; color: var(--text); font-size: 14px; font-family: var(--mono);
+  }
+  .field input:focus, .field select:focus { border-color: var(--accent); outline: none; }
+
+  .btn {
+    display: inline-flex; align-items: center; gap: 8px;
+    font-family: var(--font); font-size: 14px; font-weight: 500;
+    padding: 12px 24px; border-radius: 6px; border: none; cursor: pointer; transition: all .2s;
+  }
+  .btn-primary { background: var(--accent); color: #000; }
+  .btn-primary:hover { background: #00c98a; }
+  .btn-secondary { background: var(--surface); color: var(--text); border: 1px solid var(--border); }
+  .btn-secondary:hover { border-color: var(--accent); }
+  .btn:disabled { opacity: 0.4; cursor: not-allowed; }
+
+  .result-box {
+    border: 1px solid var(--border); border-radius: 8px;
+    background: var(--card); padding: 24px; margin-top: 24px;
+  }
+
+  .result-title { font-size: 18px; font-weight: 600; color: var(--accent); margin-bottom: 16px; }
+  .result-verdict { font-size: 24px; font-weight: 700; color: var(--accent); margin: 16px 0; }
+
+  .metrics-grid { display: grid; grid-template-columns: repeat(auto-fit, minmax(180px, 1fr)); gap: 16px; margin: 20px 0; }
+  .metric-card { 
+    background: var(--surface); border: 1px solid var(--border);
+    border-radius: 6px; padding: 16px; text-align: center;
+  }
+  .metric-value { font-size: 28px; font-weight: 700; color: var(--accent); font-family: var(--mono); }
+  .metric-label { font-size: 12px; color: var(--muted); margin-top: 8px; }
+
+  .prob-item { 
+    display: flex; align-items: center; gap: 12px; padding: 10px 0;
+    border-bottom: 1px solid var(--border);
+  }
+  .prob-name { min-width: 140px; font-size: 13px; color: var(--muted); font-family: var(--mono); }
+  .prob-bar { flex: 1; height: 18px; background: var(--border); border-radius: 3px; overflow: hidden; }
+  .prob-fill { height: 100%; background: linear-gradient(90deg, var(--accent), var(--accent2)); }
+  .prob-pct { min-width: 60px; text-align: right; font-family: var(--mono); font-size: 13px; font-weight: 600; color: var(--accent); }
+
+  .confusion-section {
+    margin: 20px 0;
+    overflow-x: auto;
+  }
+
+  .confusion-table {
+    border-collapse: collapse;
+    font-family: var(--mono);
+    font-size: 11px;
+    background: var(--surface);
+  }
+
+  .confusion-table td {
+    padding: 8px 10px;
+    border: 1px solid var(--border);
+    text-align: center;
+    min-width: 50px;
+  }
+
+  .confusion-table th {
+    background: var(--border);
+    color: var(--accent);
+    font-weight: 600;
+    padding: 10px;
+  }
+
+  .upload-zone {
+    border: 2px dashed var(--border); border-radius: 8px;
+    padding: 40px; text-align: center; cursor: pointer; transition: all .2s;
+    margin: 20px 0;
+  }
+  .upload-zone:hover, .upload-zone.drag { 
+    border-color: var(--accent); background: rgba(0, 229, 160, 0.05); 
+  }
+  .upload-zone p { color: var(--muted); font-size: 14px; }
+  .upload-zone input { display: none; }
+
+  .section-title { 
+    font-size: 12px; font-family: var(--mono); color: var(--accent); 
+    text-transform: uppercase; letter-spacing: 1px; margin: 20px 0 12px 0; font-weight: 600;
+  }
+
+  .toast { 
+    position: fixed; bottom: 24px; right: 24px; background: var(--surface); 
+    border: 1px solid var(--border); padding: 12px 20px; border-radius: 6px; 
+    font-size: 14px; opacity: 0; pointer-events: none; transition: opacity .3s; z-index: 1000;
+  }
+  .toast.show { opacity: 1; pointer-events: all; }
+
+  hr { border: none; border-top: 1px solid var(--border); margin: 20px 0; }
+
+  .buttons-row { text-align: center; margin: 20px 0; display: flex; gap: 12px; justify-content: center; flex-wrap: wrap; }
+
+  @media(max-width: 768px) {
+    .form-grid { grid-template-columns: 1fr; }
+    .metrics-grid { grid-template-columns: 1fr; }
+  }
+</style>
+</head>
+<body>
+
+<div class="wrap">
+  <header>
+    <div class="logo">🔬 OBESITY PREDICTOR</div>
+    <div class="status" id="status">Cargando...</div>
+  </header>
+
+  <div class="hero">
+    <h1>Predictor de <span>Categoría de Peso</span></h1>
+    <p>Machine Learning con Regresión Logística y Red Neuronal</p>
+  </div>
+
+  <div class="tabs">
+    <button class="tab-btn active" onclick="switchTab('individual', this)">Predicción Individual</button>
+    <button class="tab-btn" onclick="switchTab('batch', this)">Predicción por Lotes</button>
+    <button class="tab-btn" onclick="switchTab('info', this)">Info Modelos</button>
+  </div>
+
+  <!-- PANEL PREDICCIÓN INDIVIDUAL -->
+  <div id="individual" class="panel active">
+    <div class="model-selector">
+      <button class="model-btn active" onclick="selectModel('logistic_regression', this)">📊 Regresión Logística</button>
+      <button class="model-btn" onclick="selectModel('neural_network', this)">🧠 Red Neuronal</button>
+    </div>
+
+    <div class="form-grid">
+      <div class="field"><label>Género</label><select id="Gender"><option value="">--</option><option value="Male">Masculino</option><option value="Female">Femenino</option></select></div>
+      <div class="field"><label>Edad</label><input type="number" id="Age" placeholder="25"></div>
+      <div class="field"><label>Altura (m)</label><input type="number" id="Height" placeholder="1.75" step="0.01"></div>
+      <div class="field"><label>Peso (kg)</label><input type="number" id="Weight" placeholder="70"></div>
+      <div class="field"><label>Antecedentes</label><select id="family_history_with_overweight"><option value="">--</option><option value="yes">Sí</option><option value="no">No</option></select></div>
+      <div class="field"><label>FAVC</label><select id="FAVC"><option value="">--</option><option value="yes">Sí</option><option value="no">No</option></select></div>
+      <div class="field"><label>FCVC</label><input type="number" id="FCVC" placeholder="2" step="0.1"></div>
+      <div class="field"><label>NCP</label><input type="number" id="NCP" placeholder="3"></div>
+      <div class="field"><label>CAEC</label><select id="CAEC"><option value="">--</option><option value="no">No</option><option value="Sometimes">A veces</option><option value="Frequently">Frecuentemente</option><option value="Always">Siempre</option></select></div>
+      <div class="field"><label>SMOKE</label><select id="SMOKE"><option value="">--</option><option value="yes">Sí</option><option value="no">No</option></select></div>
+      <div class="field"><label>CH2O</label><input type="number" id="CH2O" placeholder="2" step="0.1"></div>
+      <div class="field"><label>SCC</label><select id="SCC"><option value="">--</option><option value="yes">Sí</option><option value="no">No</option></select></div>
+      <div class="field"><label>FAF</label><input type="number" id="FAF" placeholder="2" step="0.1"></div>
+      <div class="field"><label>TUE</label><input type="number" id="TUE" placeholder="2" step="0.1"></div>
+      <div class="field"><label>CALC</label><select id="CALC"><option value="">--</option><option value="no">Nunca</option><option value="Sometimes">A veces</option><option value="Frequently">Frecuentemente</option><option value="Always">Siempre</option></select></div>
+      <div class="field"><label>MTRANS</label><select id="MTRANS"><option value="">--</option><option value="Public_Transportation">Transporte Público</option><option value="Automobile">Auto</option><option value="Walking">Caminata</option><option value="Bike">Bicicleta</option><option value="Motorbike">Motocicleta</option></select></div>
+    </div>
+
+    <div class="buttons-row">
+      <button class="btn btn-primary" onclick="predictIndividual()">▶ Predecir</button>
+      <button class="btn btn-secondary" onclick="clearForm()">🔄 Limpiar</button>
+      <button class="btn btn-secondary" onclick="fillExample()">📋 Ejemplo</button>
+    </div>
+
+    <div id="result-individual"></div>
+  </div>
+
+  <!-- PANEL PREDICCIÓN POR LOTES -->
+  <div id="batch" class="panel">
+    <div class="model-selector">
+      <button class="model-btn active" onclick="selectModelBatch('logistic_regression', this)">📊 Regresión Logística</button>
+      <button class="model-btn" onclick="selectModelBatch('neural_network', this)">🧠 Red Neuronal</button>
+    </div>
+
+    <div class="section-title">Cargar CSV</div>
+    <div class="upload-zone" id="upload-zone" onclick="document.getElementById('csv-input').click()">
+      <div style="font-size: 32px;">📁</div>
+      <p><strong>Arrastra un CSV aquí</strong> o haz clic para seleccionar</p>
+      <input type="file" id="csv-input" accept=".csv" onchange="handleCSV(event)">
+    </div>
+
+    <div class="buttons-row">
+      <button class="btn btn-primary" id="btn-process" disabled onclick="processBatch()">▶ Procesar</button>
+    </div>
+
+    <div id="result-batch"></div>
+  </div>
+
+  <!-- PANEL INFO -->
+  <div id="info" class="panel">
+    <div class="result-box">
+      <div class="result-title">📊 Regresión Logística</div>
+      <div class="metrics-grid">
+        <div class="metric-card">
+          <div class="metric-value" id="lr-acc">--</div>
+          <div class="metric-label">Accuracy</div>
+        </div>
+        <div class="metric-card">
+          <div class="metric-value" id="lr-f1">--</div>
+          <div class="metric-label">F1-Score</div>
+        </div>
+      </div>
+      <div class="section-title">Parámetros</div>
+      <div id="lr-params" style="font-family: var(--mono); font-size: 12px; color: var(--muted);"></div>
+    </div>
+
+    <div class="result-box">
+      <div class="result-title">🧠 Red Neuronal (MLP)</div>
+      <div class="metrics-grid">
+        <div class="metric-card">
+          <div class="metric-value" id="mlp-acc">--</div>
+          <div class="metric-label">Accuracy</div>
+        </div>
+        <div class="metric-card">
+          <div class="metric-value" id="mlp-f1">--</div>
+          <div class="metric-label">F1-Score</div>
+        </div>
+      </div>
+      <div class="section-title">Parámetros</div>
+      <div id="mlp-params" style="font-family: var(--mono); font-size: 12px; color: var(--muted);"></div>
+    </div>
+  </div>
+</div>
+
+<div class="toast" id="toast"></div>
+
+<script>
+// ════════════════════════════════════════════════════════════════
+// VARIABLES GLOBALES
+// ════════════════════════════════════════════════════════════════
+let MODELS = null;
+let selectedModel = 'logistic_regression';
+let selectedBatchModel = 'logistic_regression';
+let batchData = null;
+
+// ════════════════════════════════════════════════════════════════
+// CARGAR MODELOS
+// ════════════════════════════════════════════════════════════════
+async function loadModels() {
+  try {
+    const response = await fetch('models.json');
+    if (!response.ok) throw new Error('Error cargando models.json');
+    
+    MODELS = await response.json();
+    
+    console.log('✅ Modelos cargados:', MODELS);
+    updateStatus('✅ Modelos listos');
+    updateInfo();
+  } catch (err) {
+    console.error('Error:', err);
+    updateStatus('❌ Error cargando modelos');
+    toast('❌ Error: ' + err.message);
+  }
+}
+
+// ════════════════════════════════════════════════════════════════
+// PREDICCIÓN INDIVIDUAL
+// ════════════════════════════════════════════════════════════════
+function predictIndividual() {
+  if (!MODELS) {
+    toast('⏳ Modelos aún cargándose...');
+    return;
+  }
+
+  const encoders = MODELS.encoders;
+  const features = encoders.feature_names;
+  const classNames = encoders.class_names;
+  
+  // Recopilar datos del formulario
+  const data = {};
+  features.forEach(f => {
+    const el = document.getElementById(f);
+    if (!el) {
+      console.warn(`Campo ${f} no encontrado`);
+      return;
+    }
+    
+    let value = el.value;
+    
+    // Validar campo vacío
+    if (value === '') {
+      toast(`⚠️ Campo ${f} vacío`);
+      throw new Error(`Campo ${f} vacío`);
+    }
+    
+    // Procesar valor
+    if (encoders.categorical_columns.includes(f)) {
+      // Es categórico: encontrar índice
+      const idx = encoders.encoders[f].indexOf(value);
+      if (idx === -1) {
+        console.warn(`Valor ${value} no encontrado en ${f}`);
+        data[f] = NaN;
+      } else {
+        data[f] = idx;
+      }
+    } else {
+      // Es numérico
+      data[f] = parseFloat(value);
+    }
+  });
+
+  // Validar
+  if (Object.values(data).some(v => isNaN(v))) {
+    toast('⚠️ Completa todos los campos correctamente');
+    return;
+  }
+
+  try {
+    // Crear array en orden correcto
+    const X = features.map(f => data[f]);
+    
+    // Escalar
+    const X_scaled = X.map((x, i) => (x - MODELS.logistic_regression.scaler_mean[i]) / MODELS.logistic_regression.scaler_std[i]);
+    
+    // Predecir
+    let result;
+    if (selectedModel === 'logistic_regression') {
+      result = predictLR(X_scaled);
+    } else {
+      result = predictMLP(X_scaled);
+    }
+
+    // Mostrar resultado
+    displayIndividualResult(result, classNames);
+  } catch (err) {
+    console.error('Error en predicción:', err);
+    toast('❌ Error en predicción: ' + err.message);
+  }
+}
+
+function predictLR(X_scaled) {
+  const model = MODELS.logistic_regression;
+  const coefs = model.coef;
+  const intercepts = model.intercept;
+  const classes = model.classes;
+  
+  // Calcular logits para cada clase
+  const logits = intercepts.map((int, k) => {
+    let sum = int;
+    for (let i = 0; i < X_scaled.length; i++) {
+      sum += X_scaled[i] * coefs[k][i];
+    }
+    return sum;
+  });
+
+  // Softmax
+  const maxLogit = Math.max(...logits);
+  const probs = logits.map(l => Math.exp(l - maxLogit));
+  const sumProbs = probs.reduce((a, b) => a + b, 0);
+  const normalized = probs.map(p => p / sumProbs);
+
+  const predIdx = normalized.indexOf(Math.max(...normalized));
+
+  return {
+    prediction: predIdx,
+    probabilities: normalized,
+    class: classes[predIdx]
+  };
+}
+
+function predictMLP(X_scaled) {
+  const model = MODELS.neural_network;
+  const weights = model.weights;
+  const biases = model.biases;
+  const activation = model.activation;
+  const classes = model.classes;
+
+  function relu(x) { return Math.max(0, x); }
+  function tanh(x) { return Math.tanh(x); }
+  function sigmoid(x) { return 1 / (1 + Math.exp(-x)); }
+
+  let layer = X_scaled;
+
+  // Forward pass
+  for (let l = 0; l < weights.length; l++) {
+    const W = weights[l];
+    const b = biases[l];
+    let next = new Array(b.length).fill(0);
+
+    for (let j = 0; j < b.length; j++) {
+      next[j] = b[j];
+      for (let i = 0; i < layer.length; i++) {
+        next[j] += layer[i] * W[i][j];
+      }
+    }
+
+    if (l < weights.length - 1) {
+      next = next.map(x => activation === 'relu' ? relu(x) : tanh(x));
+    } else {
+      next = next.map(x => sigmoid(x));
+    }
+
+    layer = next;
+  }
+
+  // Normalizar
+  const sum = layer.reduce((a, b) => a + b, 0);
+  const probs = layer.map(p => p / sum);
+  const predIdx = probs.indexOf(Math.max(...probs));
+
+  return {
+    prediction: predIdx,
+    probabilities: probs,
+    class: classes[predIdx]
+  };
+}
+
+function displayIndividualResult(result, classNames) {
+  let html = `
+    <div class="result-box">
+      <div class="result-title">Predicción</div>
+      <div class="result-verdict">${result.class}</div>
+      <p style="color: var(--muted);">Confianza: <strong>${(Math.max(...result.probabilities) * 100).toFixed(2)}%</strong></p>
+      
+      <div class="section-title">Probabilidades</div>
+      <div>
+  `;
+
+  classNames.forEach((cls, i) => {
+    const prob = result.probabilities[i];
+    const pct = (prob * 100).toFixed(1);
+    html += `
+      <div class="prob-item">
+        <div class="prob-name">${cls}</div>
+        <div class="prob-bar"><div class="prob-fill" style="width: ${prob * 100}%"></div></div>
+        <div class="prob-pct">${pct}%</div>
+      </div>
+    `;
+  });
+
+  html += `</div></div>`;
+  document.getElementById('result-individual').innerHTML = html;
+  document.getElementById('result-individual').scrollIntoView({ behavior: 'smooth' });
+}
+
+// ════════════════════════════════════════════════════════════════
+// PREDICCIÓN POR LOTES
+// ════════════════════════════════════════════════════════════════
+function handleCSV(event) {
+  const file = event.target.files[0];
+  if (!file) return;
+
+  const reader = new FileReader();
+  reader.onload = (e) => {
+    try {
+      const csv = e.target.result;
+      const lines = csv.trim().split('\n');
+      const headers = lines[0].split(',').map(h => h.trim());
+      
+      const rows = [];
+      for (let i = 1; i < lines.length; i++) {
+        if (!lines[i].trim()) continue;
+        const values = lines[i].split(',').map(v => v.trim());
+        const row = {};
+        headers.forEach((h, j) => {
+          row[h] = values[j] || '';
+        });
+        rows.push(row);
+      }
+
+      batchData = rows;
+      document.getElementById('btn-process').disabled = false;
+      toast(`✅ ${rows.length} registros cargados`);
+    } catch (err) {
+      toast('❌ Error en CSV: ' + err.message);
+      console.error(err);
+    }
+  };
+  reader.readAsText(file);
+}
+
+function processBatch() {
+  if (!batchData || batchData.length === 0) {
+    toast('⚠️ Carga un CSV primero');
+    return;
+  }
+
+  if (!MODELS) {
+    toast('⏳ Modelos cargándose...');
+    return;
+  }
+
+  const encoders = MODELS.encoders;
+  const features = encoders.feature_names;
+  const classNames = encoders.class_names;
+  
+  const predictions = [];
+  const confusionMatrix = Array(classNames.length).fill(null).map(() => Array(classNames.length).fill(0));
+
+  for (let row of batchData) {
+    try {
+      const data = {};
+      features.forEach(f => {
+        let value = row[f];
+        if (!value) return;
+
+        if (encoders.categorical_columns.includes(f)) {
+          const idx = encoders.encoders[f].indexOf(value);
+          data[f] = idx === -1 ? NaN : idx;
+        } else {
+          data[f] = parseFloat(value);
+        }
+      });
+
+      if (Object.values(data).some(v => isNaN(v))) continue;
+
+      const X = features.map(f => data[f]);
+      const X_scaled = X.map((x, i) => (x - MODELS.logistic_regression.scaler_mean[i]) / MODELS.logistic_regression.scaler_std[i]);
+
+      let result;
+      if (selectedBatchModel === 'logistic_regression') {
+        result = predictLR(X_scaled);
+      } else {
+        result = predictMLP(X_scaled);
+      }
+
+      predictions.push({
+        real: row['NObeyesdad'] ? classNames.indexOf(row['NObeyesdad']) : null,
+        pred: result.prediction,
+        class: result.class,
+        probs: result.probabilities
+      });
+
+      // Matriz de confusión (si hay label real)
+      if (row['NObeyesdad']) {
+        const realIdx = classNames.indexOf(row['NObeyesdad']);
+        if (realIdx !== -1) {
+          confusionMatrix[realIdx][result.prediction]++;
+        }
+      }
+    } catch (err) {
+      console.warn('Error procesando fila:', err);
+    }
+  }
+
+  displayBatchResults(predictions, confusionMatrix, classNames);
+}
+
+function displayBatchResults(predictions, confusionMatrix, classNames) {
+  if (predictions.length === 0) {
+    toast('❌ No se pudieron procesar registros');
+    return;
+  }
+
+  // Contar predicciones
+  const counts = {};
+  classNames.forEach(c => counts[c] = 0);
+  predictions.forEach(p => counts[p.class]++);
+
+  let html = `
+    <div class="result-box">
+      <div class="result-title">Resultados - Lotes</div>
+      
+      <div class="metrics-grid">
+        <div class="metric-card">
+          <div class="metric-value">${predictions.length}</div>
+          <div class="metric-label">Registros</div>
+        </div>
+        <div class="metric-card">
+          <div class="metric-value">${(predictions.reduce((a, p) => a + Math.max(...p.probs), 0) / predictions.length * 100).toFixed(1)}%</div>
+          <div class="metric-label">Confianza Prom.</div>
+        </div>
+      </div>
+
+      <div class="section-title">Distribución de Predicciones</div>
+      <div>
+  `;
+
+  classNames.forEach(cls => {
+    const count = counts[cls];
+    const pct = (count / predictions.length * 100).toFixed(1);
+    html += `
+      <div class="prob-item">
+        <div class="prob-name">${cls}</div>
+        <div class="prob-bar"><div class="prob-fill" style="width: ${count / predictions.length * 100}%"></div></div>
+        <div class="prob-pct">${count} (${pct}%)</div>
+      </div>
+    `;
+  });
+
+  html += `</div>`;
+
+  // Matriz de confusión
+  if (confusionMatrix[0].some(v => v > 0)) {
+    html += `
+      <div class="section-title">Matriz de Confusión</div>
+      <div class="confusion-section">
+        <table class="confusion-table">
+          <tr>
+            <th></th>
+    `;
+    classNames.forEach(cls => html += `<th>${cls.substring(0, 8)}</th>`);
+    html += `</tr>`;
+
+    classNames.forEach((realCls, i) => {
+      html += `<tr><th>${realCls.substring(0, 8)}</th>`;
+      for (let j = 0; j < classNames.length; j++) {
+        const val = confusionMatrix[i][j];
+        html += `<td ${i === j ? 'style="background: rgba(0, 229, 160, 0.2);"' : ''}>${val}</td>`;
+      }
+      html += `</tr>`;
+    });
+
+    html += `</table></div>`;
+  }
+
+  html += `</div>`;
+
+  document.getElementById('result-batch').innerHTML = html;
+  document.getElementById('result-batch').scrollIntoView({ behavior: 'smooth' });
+}
+
+// ════════════════════════════════════════════════════════════════
+// UTILIDADES
+// ════════════════════════════════════════════════════════════════
+function switchTab(tab, btn) {
+  document.querySelectorAll('.panel').forEach(p => p.classList.remove('active'));
+  document.getElementById(tab).classList.add('active');
+  
+  document.querySelectorAll('.tab-btn').forEach(b => b.classList.remove('active'));
+  btn.classList.add('active');
+}
+
+function selectModel(model, btn) {
+  selectedModel = model;
+  document.querySelectorAll('#individual .model-btn').forEach(b => b.classList.remove('active'));
+  btn.classList.add('active');
+}
+
+function selectModelBatch(model, btn) {
+  selectedBatchModel = model;
+  document.querySelectorAll('#batch .model-btn').forEach(b => b.classList.remove('active'));
+  btn.classList.add('active');
+}
+
+function clearForm() {
+  document.querySelectorAll('input, select').forEach(el => el.value = '');
+  document.getElementById('result-individual').innerHTML = '';
+  toast('🔄 Formulario limpiado');
+}
+
+function fillExample() {
+  const data = {
+    Gender: 'Male', Age: 25, Height: 1.75, Weight: 70,
+    family_history_with_overweight: 'no', FAVC: 'no', FCVC: 2, NCP: 3,
+    CAEC: 'Sometimes', SMOKE: 'no', CH2O: 2, SCC: 'no',
+    FAF: 2, TUE: 2, CALC: 'Sometimes', MTRANS: 'Public_Transportation'
+  };
+  
+  Object.entries(data).forEach(([k, v]) => {
+    const el = document.getElementById(k);
+    if (el) el.value = v;
+  });
+  
+  toast('📋 Ejemplo cargado');
+}
+
+function updateStatus(msg) {
+  document.getElementById('status').textContent = msg;
+}
+
+function updateInfo() {
+  if (!MODELS) return;
+
+  const lr = MODELS.logistic_regression;
+  const mlp = MODELS.neural_network;
+
+  document.getElementById('lr-acc').textContent = (lr.accuracy * 100).toFixed(1) + '%';
+  document.getElementById('lr-f1').textContent = (lr.f1_score * 100).toFixed(1) + '%';
+
+  let lrParams = '<div>';
+  Object.entries(lr.best_params || {}).forEach(([k, v]) => {
+    lrParams += `<div>• ${k}: ${v}</div>`;
+  });
+  lrParams += '</div>';
+  document.getElementById('lr-params').innerHTML = lrParams;
+
+  document.getElementById('mlp-acc').textContent = (mlp.accuracy * 100).toFixed(1) + '%';
+  document.getElementById('mlp-f1').textContent = (mlp.f1_score * 100).toFixed(1) + '%';
+
+  let mlpParams = '<div>';
+  Object.entries(mlp.best_params || {}).forEach(([k, v]) => {
+    mlpParams += `<div>• ${k}: ${v}</div>`;
+  });
+  mlpParams += '</div>';
+  document.getElementById('mlp-params').innerHTML = mlpParams;
+}
+
+function toast(msg) {
+  const el = document.getElementById('toast');
+  el.textContent = msg;
+  el.classList.add('show');
+  setTimeout(() => el.classList.remove('show'), 3000);
+}
+
+// Inicializar
+window.addEventListener('load', () => {
+  loadModels();
+
+  // Drag & drop
+  const zone = document.getElementById('upload-zone');
+  zone.addEventListener('dragover', (e) => {
+    e.preventDefault();
+    zone.classList.add('drag');
+  });
+  zone.addEventListener('dragleave', () => zone.classList.remove('drag'));
+  zone.addEventListener('drop', (e) => {
+    e.preventDefault();
+    zone.classList.remove('drag');
+    const files = e.dataTransfer.files;
+    if (files.length > 0) {
+      const event = { target: { files } };
+      handleCSV(event);
+    }
+  });
+});
+</script>
+</body>
+</html>
